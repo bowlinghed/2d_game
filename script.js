@@ -5,7 +5,9 @@ window.onload = () => {
     ctx = canvas.getContext("2d");
     framesPerSecond = 60;
     storage = {};
+    health = 100;
     map = new GameMap('./map.png');
+    spawnPoint = {x: 32, y: 32}
     colliders = [3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703, 3703,
         3703, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3703,
         3703, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3703,
@@ -45,7 +47,7 @@ window.onload = () => {
             continue;
         }
     };
-    player = new Sprite('./tiles', 32, 32, 32, 32, {
+    player = new Sprite('player', './tiles', spawnPoint.x, spawnPoint.y, 32, 32, {
         x: 32,
         y: 32,
         w: 16,
