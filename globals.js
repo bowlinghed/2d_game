@@ -7,15 +7,15 @@ var framesPerSecond;
 var player;
 var gameInterval;
 var map;
-var colliders;
-var tileWidth; // default: 32
-var tileHeight; // default: 32
-var colliderBoxes; // default: []
-var health;
-var healthBar;
-var spawnPoint;
+var server = false;
+var paused = false;
+var socket;
+var colliderBoxes
+var serverProperties = {};
+var entityList;
+var title;
 
-// Constants
+// Constants 
 
 const scale = 1;
 
@@ -32,19 +32,19 @@ class GameMap {
     }
 };
 class Sprite {
-    constructor(title, tilesDir, x = 0, y = 0, w = -1, h = -1, colliderBox,  controllable, speed) {
+    constructor(title, tiles, x = 0, y = 0, w = -1, h = -1,  controllable, speed) {
         this.title = title;
         this.x = x;
         this.y = y;
         this.w = w;
         this.h = h;
-        this.dir = tilesDir;
+        this.dir = tiles;
         this.c = controllable;
         this.speed = speed;
-        this.colliderBox = colliderBox;
         this.i = 0
         this.arr = ["1", "3"];
         this.tile = {title: "down", num: "0"};
+        this.health = 100;
     };
     enableController() {
         if (this.c) {
@@ -60,6 +60,7 @@ class Sprite {
                         this.tile.title = "up";
                         this.tile.num = this.arr[this.i % 2]
                         this.i += 1;
+                        socket.emit("w");
                         break;
                     case "a":
                         x = this.x - this.speed;
@@ -68,6 +69,7 @@ class Sprite {
                         this.tile.title = "left";
                         this.tile.num = this.arr[this.i % 2]
                         this.i += 1;
+                        socket.emit("a");
                         break;
                     case "s":
                         x = this.x;
@@ -76,6 +78,7 @@ class Sprite {
                         this.tile.title = "down";
                         this.tile.num = this.arr[this.i % 2]
                         this.i += 1;
+                        socket.emit("s");
                         break;
                     case "d":
                         x = this.x + this.speed;
@@ -84,6 +87,7 @@ class Sprite {
                         this.tile.title = "right";
                         this.tile.num = this.arr[this.i % 2]
                         this.i += 1;
+                        socket.emit("d");
                         break;
                     default:
                         // do nothing...
@@ -124,6 +128,7 @@ class Sprite {
     };
     draw() {
         draw(`${this.dir}/${this.tile.title}-${this.tile.num}.png`, ctx, canvas.clientWidth / 2, canvas.clientHeight / 2, this.w * scale, this.h * scale);
+        ctx.font = "monospace 10px"
         ctx.fillText(this.title, canvas.clientWidth / 2, canvas.clientHeight / 2);
     };
 };
@@ -143,8 +148,6 @@ function goto(player, x, y) {
     let w = player.w;
     let h = player.h
     for (var i = 0; i < colliderBoxes.length; i++) {
-        /*colliderBoxes[i].x += canvas.clientWidth / 2 - player.x;
-        colliderBoxes[i].y += canvas.clientHeight / 2 - player.y*/
         if (checkCollision({x, y, w, h}, colliderBoxes[i])) {
             return false;
         } else {
@@ -153,8 +156,6 @@ function goto(player, x, y) {
     };
     player.x = x;
     player.y = y;
-    player.colliderBox.x = x;
-    player.colliderBox.y = y;
 };
 
 function clear() {
@@ -201,15 +202,105 @@ function draw(path, ctx, x, y, w = -1, h = -1) {
     };
 };
 
+function getColliderBoxes(colliderMap) {
+    let colliderBoxes = [];
+    for (var i = 0; i < colliderMap.length; i++) {
+        if (colliderMap[i] != 0) {
+            let x = (i % 30) * 32;
+            let y = (Math.floor(i / 30)) * 32;
+            let w = serverProperties.tileWidth * scale;
+            let h = serverProperties.tileHeight * scale;
+            colliderBoxes.push({
+                x: x,
+                y: y,
+                w: w,
+                h: h
+            });
+        } else {
+            continue;
+        }
+    };
+    return colliderBoxes;
+};
 
+function downloadImage(url) {
+    let img = new Image();
+    img.src = url;
+    img.onload = () => {
+        storage[url] = img;
+    };
+};
+function joinServer(server) {
+    if (server) {
+        let xhr = new XMLHttpRequest();
+        xhr.open("GET", server, true);
+        xhr.onreadystatechange = () => {
+            if (xhr.readyState == 4) {
+                var status = xhr.status;
+                if (status == 0 || (status >= 200 && status <= 400)) {
+                    try {
+                        serverProperties = JSON.parse(xhr.responseText).gameProperties;
+                        console.log(serverProperties)
+                        init();
+                        gameInterval = setInterval(() => {
+                            if (!paused) {
+                                update()
+                            };
+                        }, 1000 / framesPerSecond);
+                    } catch (err) {
+                        server = prompt("Could not request data to server.\n Please check that if server at given address is up or join another server.", "http://localhost:8080/");
+                        joinServer(server);
+                    }
+                } else {
+                    server = prompt("Could not request data to server.\n Please check that if server at given address is up or join another server.", "http://localhost:8080/");
+                    joinServer(server);
+                };
+            };
+        };
+        xhr.send();
+    }
+}
 
 function init() {
+    title = prompt("Enter username:");
+    storage = {};
+    if (gameInterval) {
+        clearInterval(gameInterval);
+    };
+    map = new GameMap(serverProperties.mapPath);
+    colliderBoxes = getColliderBoxes(serverProperties.colliderMap);
+    socket = io(server);
+    player = new Sprite(title, serverProperties.tiles, serverProperties.spawnPoint.x, serverProperties.spawnPoint.y, serverProperties.playerWidth, serverProperties.playerHeight, true, 10);
+    socket.emit("join", player.title);
+    socket.on("titleinuse", () => {
+        player.title = prompt("Username in use! Please enter another one:");
+        socket.emit("join", player.title);
+    })
     player.enableController();
+    socket.on("update", e => {
+        entityList = e;
+    });
 };
 function update() {
     clear();
     map.draw();
     player.draw();
+    var entityTitles = Object.keys(entityList);
+    for (var i = 0; i < entityTitles.length; i++) {
+        let o = entityList[entityTitles[i]];
+        if (o.title != player.title) {
+            let x = canvas.clientWidth / 2 - player.x + o.x;
+            let y = canvas.clientHeight / 2 - player.y + o.y;
+            draw(o.path, ctx, x, y, serverProperties.playerWidth, serverProperties.playerHeight);
+            ctx.fillText(o.title, x, y);
+        };
+    };
+    socket.emit("update", {
+        title: player.title,
+        path: `${player.dir}/${player.tile.title}-${player.tile.num}.png`,
+        x: player.x,
+        y: player.y
+    });
 };
 function pause() {
     // pause
