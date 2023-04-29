@@ -206,8 +206,8 @@ function getColliderBoxes(colliderMap) {
     let colliderBoxes = [];
     for (var i = 0; i < colliderMap.length; i++) {
         if (colliderMap[i] != 0) {
-            let x = (i % 30) * 32;
-            let y = (Math.floor(i / 30)) * 32;
+            let x = (i % 30) * serverProperties.tileWidth;
+            let y = (Math.floor(i / 30)) * serverProperties.tileHeight;
             let w = serverProperties.tileWidth * scale;
             let h = serverProperties.tileHeight * scale;
             colliderBoxes.push({
